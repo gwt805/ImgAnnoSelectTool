@@ -109,8 +109,12 @@ class Imagemain(QtWidgets.QWidget):
         self.graphicsView = QtWidgets.QGraphicsView(self)
 
         self.graphicsView.setMinimumSize(QtCore.QSize(500, 0))
-        self.graphicsView.setAlignment(Qt.AlignCenter)
+        
+        self.graphicsView.setInteractive(True)
+        self.graphicsView.setDragMode(QGraphicsView.RubberBandDrag)  # 设置图元的拖动属性
+        self.graphicsView.setAcceptDrops(True)  # 此窗口小部件启用了放置事件
         self.graphicsView.setDragMode(QGraphicsView.ScrollHandDrag)
+        self.graphicsView.setAlignment(Qt.AlignCenter)
         self.graphicsView.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)  #隐藏滑动条
         self.graphicsView.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)  #隐藏滑动条
         self.graphicsView.setRenderHints(QPainter.Antialiasing | QPainter.HighQualityAntialiasing | QPainter.SmoothPixmapTransform)
@@ -143,7 +147,9 @@ class Imagemain(QtWidgets.QWidget):
         reply.addButton(self.tr("最小化到托盘"), QMessageBox.NoRole)
         reply.exec_()
         if reply.clickedButton() == yr_btn:
+            self.tray.hide()
             event.accept()
+            sys.exit()
         else:
             event.ignore()
             # 最小化到托盘

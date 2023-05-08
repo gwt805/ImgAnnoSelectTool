@@ -1,12 +1,12 @@
-from PyQt5.QtWidgets import QApplication, QFileDialog, QGraphicsScene, QMessageBox
-from PyQt5.QtGui import QPixmap, QImage
+from PyQt5.QtWidgets import QApplication, QFileDialog, QGraphicsScene, QMessageBox, QGraphicsView, QGraphicsPixmapItem, QGraphicsItem
+from PyQt5.QtGui import QPixmap, QImage, QWheelEvent
 from select_img_gui import Imagemain
-import shutil
-import sys,os
-import cv2
-from PyQt5.QtWidgets import QMessageBox, QGraphicsView,QApplication, QFileDialog, QGraphicsScene, QGraphicsPixmapItem, QGraphicsItem
-from PyQt5.QtGui import QPixmap, QImage, QPainter
 from PyQt5.QtCore import QPoint
+import shutil, sys, os
+import numpy as np
+import cv2
+
+
 class Select(Imagemain):
     def __init__(self):
         super().__init__()
@@ -26,17 +26,58 @@ class Select(Imagemain):
         self.image_idx = 0
 
         # 使用graphicsView显示图片
-        self.graphicsView.setRenderHint(QPainter.Antialiasing)
-        self.graphicsView.setDragMode(QGraphicsView.RubberBandDrag)  # 设置图元的拖动属性
-        self.graphicsView.setAcceptDrops(True)  # 此窗口小部件启用了放置事件
-        self.graphicsView.setDragMode(QGraphicsView.ScrollHandDrag)
         self.zoomscale = 1  # 图片放缩尺度
+        self.ratio = 1  # 缩放初始比例
+        self.zoom_step = 0.1  # 缩放步长
         self.scene = QGraphicsScene()  # 创建画布
         self.graphicsView.setScene(self.scene)  # 把画布添加到窗口
         self.graphicsView.show()
 
         self.show()
 
+    def wheelEvent(self, event:QWheelEvent):
+        angle = event.angleDelta() / 8
+        if angle.y() > 0:
+            self.ratio += self.zoom_step  # 缩放比例自加
+            x1 = self.item.pos().x()  # 图元左位置
+            x2 = self.item.pos().x()  # 图元右位置
+            y1 = self.item.pos().y()  # 图元上位置
+            y2 = self.item.pos().y()  # 图元下位置
+            if event.pos().x() > x1 and event.pos().x() < x2 and event.pos().y() > y1 and event.pos().y() < y2:  # 判断鼠标悬停位置是否在图元中
+                self.item.setScale(self.ratio)  # 缩放
+                a1 = event.pos() - self.item.pos()  # 鼠标与图元左上角的差值
+                a2=self.ratio/(self.ratio- self.zoom_step)-1    # 对应比例
+                delta = a1 * a2
+                self.item.setPos(self.item.pos() - delta)
+
+            else:
+                self.item.setScale(self.ratio)  # 缩放
+                delta_x = (self.pix.size().width() * self.zoom_step) / 2  # 图元偏移量
+                delta_y = (self.pix.size().height() * self.zoom_step) / 2
+                self.item.setPos(self.item.pos().x() - delta_x,
+                                           self.item.pos().y() - delta_y)  # 图元偏移
+        else:
+            self.ratio -= self.zoom_step
+            if self.ratio < 0.2:
+                self.ratio = 0.2
+            else:
+                x1 = self.item.pos().x()
+                x2 = self.item.pos().x()
+                y1 = self.item.pos().y()
+                y2 = self.item.pos().y()
+                if event.pos().x() > x1 and event.pos().x() < x2 \
+                        and event.pos().y() > y1 and event.pos().y() < y2:
+                    self.item.setScale(self.ratio)  # 缩放
+                    a1 = event.pos() - self.item.pos()  # 鼠标与图元左上角的差值
+                    a2=self.ratio/(self.ratio+ self.zoom_step)-1    # 对应比例
+                    delta = a1 * a2
+                    self.item.setPos(self.item.pos() - delta)
+                else:
+                    self.item.setScale(self.ratio)
+                    delta_x = (self.pix.size().width() * self.zoom_step) / 2
+                    delta_y = (self.pix.size().height() * self.zoom_step) / 2
+                    self.item.setPos(self.item.pos().x() + delta_x, self.item.pos().y() + delta_y)
+ 
     def image_before(self):
         if self.image_dir == "":
             reply = QMessageBox(QMessageBox.Question, self.tr("提示"), self.tr("请选择图片所在路径,路径中不允许有中文!"), QMessageBox.NoButton, self)
@@ -67,13 +108,13 @@ class Select(Imagemain):
     
     def moveimgfn(self):
         if self.label_dir == "":
-            reply = QMessageBox(QMessageBox.Question, self.tr("提示"), self.tr("请选择筛选后的保存路径,路径中不允许有中文!"), QMessageBox.NoButton, self)
+            reply = QMessageBox(QMessageBox.Question, self.tr("提示"), self.tr("请选择筛选后的保存路径!"), QMessageBox.NoButton, self)
             yr_btn = reply.addButton(self.tr("确定"), QMessageBox.YesRole)
             reply.exec_()
             if reply.clickedButton() == yr_btn:
                 self.openlabeldirfn()
         elif self.image_dir == "":
-            reply = QMessageBox(QMessageBox.Question, self.tr("提示"), self.tr("请选择图片所在路径,路径中不允许有中文!"), QMessageBox.NoButton, self)
+            reply = QMessageBox(QMessageBox.Question, self.tr("提示"), self.tr("请选择图片所在路径!"), QMessageBox.NoButton, self)
             yr_btn = reply.addButton(self.tr("确定"), QMessageBox.YesRole)
             reply.exec_()
             if reply.clickedButton() == yr_btn:
@@ -102,14 +143,14 @@ class Select(Imagemain):
                 self.imgshow()
 
     def imgshow(self):
-        img = cv2.imread(os.path.join(self.image_dir, self.img_list[self.image_idx]))
+        img = cv2.imdecode(np.fromfile(os.path.join(self.image_dir, self.img_list[self.image_idx]), dtype=np.uint8), cv2.IMREAD_COLOR) # 允许中文路径
         cvimg = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  # 把opencv 默认BGR转为通用的RGB
         y, x = img.shape[:-1]
         frame = QImage(cvimg, x, y, QImage.Format_RGB888)
         self.scene.clear()  #先清空上次的残留
-        pix = QPixmap.fromImage(frame)
-        self.item = QGraphicsPixmapItem(pix)  # 创建像素图元
-        self.item.setFlag(QGraphicsItem.ItemIsMovable)  # 使图元可以拖动，非常关键！！！！
+        self.pix = QPixmap.fromImage(frame)
+        self.item = QGraphicsPixmapItem(self.pix)  # 创建像素图元
+        self.item.setFlag(QGraphicsPixmapItem.ItemIsMovable)  # 使图元可以拖动，非常关键！！！！
         self.item.setScale(self.zoomscale)
         self.scene.addItem(self.item)  # 将图元添加到场景中
         rect = self.graphicsView.scene().sceneRect()
