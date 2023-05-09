@@ -1,7 +1,7 @@
 from PyQt5.QtWidgets import QApplication, QFileDialog, QGraphicsScene, QMessageBox, QGraphicsView, QGraphicsPixmapItem, QGraphicsItem
 from PyQt5.QtGui import QPixmap, QImage, QWheelEvent
 from select_img_gui import Imagemain
-from PyQt5.QtCore import QPoint
+from PyQt5.QtCore import QPoint, QRectF, Qt
 import shutil, sys, os
 import numpy as np
 import cv2
@@ -26,57 +26,35 @@ class Select(Imagemain):
         self.image_idx = 0
 
         # 使用graphicsView显示图片
+        self._delta = 0.1
         self.zoomscale = 1  # 图片放缩尺度
-        self.ratio = 1  # 缩放初始比例
-        self.zoom_step = 0.1  # 缩放步长
         self.scene = QGraphicsScene()  # 创建画布
         self.graphicsView.setScene(self.scene)  # 把画布添加到窗口
+        self.graphicsView.setContentsMargins(0, 0, 0, 0)
         self.graphicsView.show()
 
         self.show()
 
     def wheelEvent(self, event:QWheelEvent):
-        angle = event.angleDelta() / 8
-        if angle.y() > 0:
-            self.ratio += self.zoom_step  # 缩放比例自加
-            x1 = self.item.pos().x()  # 图元左位置
-            x2 = self.item.pos().x()  # 图元右位置
-            y1 = self.item.pos().y()  # 图元上位置
-            y2 = self.item.pos().y()  # 图元下位置
-            if event.pos().x() > x1 and event.pos().x() < x2 and event.pos().y() > y1 and event.pos().y() < y2:  # 判断鼠标悬停位置是否在图元中
-                self.item.setScale(self.ratio)  # 缩放
-                a1 = event.pos() - self.item.pos()  # 鼠标与图元左上角的差值
-                a2=self.ratio/(self.ratio- self.zoom_step)-1    # 对应比例
-                delta = a1 * a2
-                self.item.setPos(self.item.pos() - delta)
-
-            else:
-                self.item.setScale(self.ratio)  # 缩放
-                delta_x = (self.pix.size().width() * self.zoom_step) / 2  # 图元偏移量
-                delta_y = (self.pix.size().height() * self.zoom_step) / 2
-                self.item.setPos(self.item.pos().x() - delta_x,
-                                           self.item.pos().y() - delta_y)  # 图元偏移
+        if event.angleDelta().y() > 0:
+            self.zoomIn()
         else:
-            self.ratio -= self.zoom_step
-            if self.ratio < 0.2:
-                self.ratio = 0.2
-            else:
-                x1 = self.item.pos().x()
-                x2 = self.item.pos().x()
-                y1 = self.item.pos().y()
-                y2 = self.item.pos().y()
-                if event.pos().x() > x1 and event.pos().x() < x2 \
-                        and event.pos().y() > y1 and event.pos().y() < y2:
-                    self.item.setScale(self.ratio)  # 缩放
-                    a1 = event.pos() - self.item.pos()  # 鼠标与图元左上角的差值
-                    a2=self.ratio/(self.ratio+ self.zoom_step)-1    # 对应比例
-                    delta = a1 * a2
-                    self.item.setPos(self.item.pos() - delta)
-                else:
-                    self.item.setScale(self.ratio)
-                    delta_x = (self.pix.size().width() * self.zoom_step) / 2
-                    delta_y = (self.pix.size().height() * self.zoom_step) / 2
-                    self.item.setPos(self.item.pos().x() + delta_x, self.item.pos().y() + delta_y)
+            self.zoomOut()
+
+    def zoomIn(self):
+        self.zoom(1 + self._delta)
+
+    def zoomOut(self):
+        self.zoom(1 - self._delta)
+
+    def zoom(self, factor):
+
+        _factor = self.graphicsView.transform().scale(
+            factor, factor).mapRect(QRectF(0, 0, 1, 1)).width()
+        if _factor < 0.07 or _factor > 100:
+            return
+        self.item.setScale(factor)
+
  
     def image_before(self):
         if self.image_dir == "":
